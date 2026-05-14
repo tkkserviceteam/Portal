@@ -8,6 +8,7 @@ interface IconProps {
   name: string;
   x: number;
   y: number;
+  url?: string; // 加入這一行，問號代表這是選填
 }
 
 export default function DraggableIcon({ id, name, x, y }: IconProps) {
