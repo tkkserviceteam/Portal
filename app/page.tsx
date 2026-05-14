@@ -1,65 +1,48 @@
-import Image from "next/image";
+"use client";
+import React from 'react';
+import { motion } from 'framer-motion';
 
-export default function Home() {
+export default function Desktop() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    // 1. 桌面背景 (你可以之後換成自己的桌布網址)
+    <main className="relative h-screen w-screen overflow-hidden bg-[#005a9c] bg-[url('https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?q=80&w=2574&auto=format&fit=crop')] bg-cover bg-center">
+      
+      {/* 2. 頂部選單列 (Menu Bar) */}
+      <nav className="absolute top-0 w-full h-8 bg-white/10 backdrop-blur-md flex items-center px-4 justify-between text-white text-sm z-50 border-b border-white/10">
+        <div className="flex gap-4 items-center">
+          <span className="font-bold"></span>
+          <span className="font-semibold">Finder</span>
+          <span className="hidden md:block">File</span>
+          <span className="hidden md:block">Edit</span>
+          <span className="hidden md:block">View</span>
+          <span className="hidden md:block">Go</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="flex gap-4 items-center font-medium">
+          <span>100%</span>
+          <span>{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
         </div>
-      </main>
-    </div>
+      </nav>
+
+      {/* 3. 圖示放置區域 (預留給之後的 Draggable Icons) */}
+      <div className="relative w-full h-full pt-10 p-4">
+        {/* 我們下一步會在這裡加入可移動的入口圖示 */}
+      </div>
+
+      {/* 4. 底部 Dock */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+        <div className="h-16 px-3 py-2 bg-white/20 backdrop-blur-2xl border border-white/30 rounded-2xl flex items-center gap-3 shadow-2xl">
+          {/* 這裡先放兩個假圖示占位 */}
+          <motion.div 
+            whileHover={{ y: -10, scale: 1.1 }}
+            className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl shadow-lg cursor-pointer"
+          />
+          <motion.div 
+            whileHover={{ y: -10, scale: 1.1 }}
+            className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-xl shadow-lg cursor-pointer"
+          />
+        </div>
+      </div>
+
+    </main>
   );
 }
