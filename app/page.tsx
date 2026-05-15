@@ -43,24 +43,16 @@ export default function Desktop() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // 1. 初始化讀取與時間更新
-useEffect(() => {
+  useEffect(() => {
     const fetchIcons = async () => {
       const { data } = await supabase.from('user_desktop_icons').select('*');
-      if (data) {
-        // 校正邏輯：如果座標超過當前視窗，自動縮回
-        const correctedData = data.map(icon => {
-          const maxX = window.innerWidth - 96;
-          const maxY = window.innerHeight - 150;
-          return {
-            ...icon,
-            pos_x: icon.pos_x > maxX ? Math.floor(maxX / GRID_SIZE) * GRID_SIZE : icon.pos_x,
-            pos_y: icon.pos_y > maxY ? Math.floor(maxY / GRID_SIZE) * GRID_SIZE : icon.pos_y,
-          };
-        });
-        setIcons(correctedData);
-      }
+      if (data) setIcons(data);
     };
     fetchIcons();
+
+    // 每分鐘更新一次時間
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
 
   const sensors = useSensors(useSensor(MouseSensor, {
@@ -69,38 +61,31 @@ useEffect(() => {
 
   // 2. 處理開啟 App (分流邏輯)
 const handleOpenApp = (app: any) => {
-    // 1. 偵測是否為行動裝置 (手機或平板)
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
-
-    // 2. 判斷是否為特殊系統 (原有的 IP 與 .nsf 判斷)
+    // 1. 定義「特殊網址」的判斷條件
+    // 只要網址包含 IP (211.75.18.228) 或 Lotus Notes 的副檔名 (.nsf)
     const isSpecialSystem = 
       app.url.includes('211.75.18.228') || 
       app.url.includes('.nsf') ||
       app.url.includes('tkkns1');
 
-    if (isSpecialSystem || isMobile) {
-      // 設定視窗尺寸 (電腦版有用，手機版則會影響瀏覽器決定如何開啟)
+    if (isSpecialSystem) {
+      // 2. 針對特殊網址：直接開啟「彈出式獨立視窗」
+      // 這能解決登入過期 (401) 與腳本報錯問題
       const w = 1200;
       const h = 850;
       const left = (window.screen.width / 2) - (w / 2);
       const top = (window.screen.height / 2) - (h / 2);
 
-      // --- 關鍵修改 ---
-      // 在手機 Chrome 上，如果你不給太多複雜參數，它較容易觸發 "Custom Tab" 或 "Floating window"
-      // 對於電腦，我們維持隱藏工具列的「獨立 App 感」
-      const features = isMobile 
-        ? "noopener,noreferrer" // 手機端：讓系統決定最佳開啟方式 (通常是 Chrome 漂浮視窗)
-        : `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,status=no,location=no,toolbar=no,menubar=no`;
-
-      const newWin = window.open(app.url, "_blank", features);
-      
-      if (newWin) {
-        newWin.focus();
-      }
-      return;
+      window.open(
+        app.url, 
+        `App_${app.id}`, 
+        `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,resizable=yes,status=no,location=no,toolbar=no,menubar=no`
+      );
+      // 直接 return，不讓它跑下面的 setOpenApps
+      return; 
     }
 
-    // 3. 一般網頁 (電腦版且非特殊系統) 則繼續使用 iFrame
+    // 3. 一般網頁：維持在你原本設想的「入口網站虛擬視窗」開啟
     const isAlreadyOpen = openApps.find(a => a.id === app.id);
     if (!isAlreadyOpen) {
       setOpenApps([...openApps, app]);
@@ -117,40 +102,21 @@ const handleOpenApp = (app: any) => {
     setActiveAppId(null); 
   };
 
-const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, delta } = event;
-    
     setIcons((prevIcons) => 
       prevIcons.map((icon) => {
         if (icon.id === active.id) {
-          // 1. 計算預期座標 (原始位置 + 位移量)
           const rawX = icon.pos_x + delta.x;
           const rawY = icon.pos_y + delta.y;
-
-          // 2. 取得動態螢幕邊界
-          // 假設圖示寬度在手機上較小 (約 80px)，電腦上較大 (約 96px)
-          const iconWidth = window.innerWidth < 640 ? 80 : 96;
-          const maxX = window.innerWidth - iconWidth;
-          const maxY = window.innerHeight - 160; // 預留 Dock 與安全區域
-
-          // 3. 碰撞偵測：限制在可視範圍內
-          // 頂部預留 40px (Menu Bar)，底部預留 Dock 空間
-          const boundedX = Math.max(0, Math.min(rawX, maxX));
-          const boundedY = Math.max(40, Math.min(rawY, maxY));
-
-          // 4. 貼齊格線 (Grid Snapping)
-          const snappedX = Math.round(boundedX / GRID_SIZE) * GRID_SIZE;
-          const snappedY = Math.round(boundedY / GRID_SIZE) * GRID_SIZE;
-
-          // 5. 非同步更新 Supabase
+          const snappedX = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
+          const snappedY = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
+          
           supabase.from('user_desktop_icons')
             .update({ pos_x: snappedX, pos_y: snappedY })
             .eq('id', active.id)
-            .then(({ error }) => {
-              if (error) console.error("資料庫更新失敗:", error);
-            });
+            .then();
 
-          // 這裡回傳整個 icon 物件，確保原本的 icon 欄位、name、url 都被完整保留
           return { ...icon, pos_x: snappedX, pos_y: snappedY };
         }
         return icon;
@@ -188,8 +154,7 @@ const handleDragEnd = async (event: DragEndEvent) => {
               name={icon.name}
               x={icon.pos_x}
               y={icon.pos_y}
-			  icon={icon.icon}
-			  onOpen={() => handleOpenApp(icon)}
+              onOpen={() => handleOpenApp(icon)} 
             />
           ))}
         </div>
