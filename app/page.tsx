@@ -69,31 +69,38 @@ useEffect(() => {
 
   // 2. 處理開啟 App (分流邏輯)
 const handleOpenApp = (app: any) => {
-    // 1. 定義「特殊網址」的判斷條件
-    // 只要網址包含 IP (211.75.18.228) 或 Lotus Notes 的副檔名 (.nsf)
+    // 1. 偵測是否為行動裝置 (手機或平板)
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
+
+    // 2. 判斷是否為特殊系統 (原有的 IP 與 .nsf 判斷)
     const isSpecialSystem = 
       app.url.includes('211.75.18.228') || 
       app.url.includes('.nsf') ||
       app.url.includes('tkkns1');
 
-    if (isSpecialSystem) {
-      // 2. 針對特殊網址：直接開啟「彈出式獨立視窗」
-      // 這能解決登入過期 (401) 與腳本報錯問題
+    if (isSpecialSystem || isMobile) {
+      // 設定視窗尺寸 (電腦版有用，手機版則會影響瀏覽器決定如何開啟)
       const w = 1200;
       const h = 850;
       const left = (window.screen.width / 2) - (w / 2);
       const top = (window.screen.height / 2) - (h / 2);
 
-      window.open(
-        app.url, 
-        `App_${app.id}`, 
-        `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,resizable=yes,status=no,location=no,toolbar=no,menubar=no`
-      );
-      // 直接 return，不讓它跑下面的 setOpenApps
-      return; 
+      // --- 關鍵修改 ---
+      // 在手機 Chrome 上，如果你不給太多複雜參數，它較容易觸發 "Custom Tab" 或 "Floating window"
+      // 對於電腦，我們維持隱藏工具列的「獨立 App 感」
+      const features = isMobile 
+        ? "noopener,noreferrer" // 手機端：讓系統決定最佳開啟方式 (通常是 Chrome 漂浮視窗)
+        : `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,status=no,location=no,toolbar=no,menubar=no`;
+
+      const newWin = window.open(app.url, "_blank", features);
+      
+      if (newWin) {
+        newWin.focus();
+      }
+      return;
     }
 
-    // 3. 一般網頁：維持在你原本設想的「入口網站虛擬視窗」開啟
+    // 3. 一般網頁 (電腦版且非特殊系統) 則繼續使用 iFrame
     const isAlreadyOpen = openApps.find(a => a.id === app.id);
     if (!isAlreadyOpen) {
       setOpenApps([...openApps, app]);
