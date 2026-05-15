@@ -33,27 +33,13 @@ export default function Desktop() {
   }));
 
   // 點擊圖示時觸發：如果是新開啟就加入 Array，如果已開啟就切換到最前
-	// 修改 handleOpenApp 函式
-	const handleOpenApp = (app: any) => {
-	  // 1. 定義哪些網域需要「跳轉開啟」而非「嵌入開啟」
-	  // 你可以把會報錯、拒絕連線、或登入過期的網址關鍵字加進這個陣列
-	  const externalDomains = ['tkkns1.tkk.com.tw', 'http://211.75.18.228/efnet/'];
-
-	  const shouldOpenExternal = externalDomains.some(domain => app.url.includes(domain));
-
-	  if (shouldOpenExternal) {
-		// 如果符合關鍵字，直接開新分頁，不建立虛擬視窗
-		window.open(app.url, '_blank');
-		return; 
-	  }
-
-	  // 2. 原有的虛擬視窗邏輯
-	  const isAlreadyOpen = openApps.find(a => a.id === app.id);
-	  if (!isAlreadyOpen) {
-		setOpenApps([...openApps, app]);
-	  }
-	  setActiveAppId(app.id);
-	};
+  const handleOpenApp = (app: any) => {
+    const isAlreadyOpen = openApps.find(a => a.id === app.id);
+    if (!isAlreadyOpen) {
+      setOpenApps([...openApps, app]);
+    }
+    setActiveAppId(app.id);
+  };
 
   // 關閉視窗
   const handleCloseApp = (id: string) => {
@@ -96,18 +82,30 @@ export default function Desktop() {
   };
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-[url('https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?q=80&w=2574&auto=format&fit=crop')] bg-cover bg-center">
+    <main className="relative h-screen w-screen overflow-hidden bg-[url('/brushstroke-white.jpg')] bg-cover bg-center">
       
       {/* 頂部選單列 (Menu Bar) */}
-      <nav className="absolute top-0 w-full h-8 bg-white/10 backdrop-blur-md flex items-center px-4 justify-between text-white text-sm z-50 border-b border-white/5">
-        <div className="flex gap-4 items-center">
-          <span className="font-bold"></span>
-          <span className="font-semibold">Finder</span>
-          <span className="hidden sm:block">File</span>
-          <span className="hidden sm:block">Edit</span>
-        </div>
-        <div className="flex gap-4 items-center">
-          <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+      <nav className="absolute top-0 w-full h-8 bg-black/10 backdrop-blur-md flex items-center px-4 justify-between text-black text-sm z-50 border-b border-white/5">
+{/* 左側容器 (即使空的也要佔位或保持結構) */}
+  <div className="flex gap-4 items-center">
+    {/* 這裡可以放其他選單 */}
+  </div>
+
+{/* 正中央文字 */}
+  <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1">
+    <span className="font-semibold">⛛綜合資訊平台</span>
+  </div>		
+{/* 右側容器 (例如時間) */}
+        <div className="flex items-center">
+          <span></span>
+		  <span>
+		  {`
+			${new Date().getFullYear()}年
+			${(new Date().getMonth() + 1).toString().padStart(2, '0')}月
+			${new Date().getDate().toString().padStart(2, '0')}日 
+			${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+		  `}
+		</span>
         </div>
       </nav>
 
@@ -149,14 +147,7 @@ export default function Desktop() {
 		  <span className="text-xs font-medium text-gray-600">{app.name}</span>
 		  <div className="w-10" />
 		</div>
-		<iframe 
-		  src={app.url} 
-		  className="w-full h-full border-none" 
-		  title={app.name}
-		  // 加入以下權限，允許它處理表單、腳本和同源請求
-		  sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
-		  allow="clipboard-read; clipboard-write"
-		/>
+		<iframe src={app.url} className="w-full h-full border-none" title={app.name} />
 	  </div>
 	))}
 
