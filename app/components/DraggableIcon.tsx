@@ -10,65 +10,74 @@ interface IconProps {
   y: number;
   url?: string;
   onOpen: () => void;
+  icon?: string; // 修改：將 iconType 改為 icon，與 Supabase 欄位名稱一致
 }
 
-export default function DraggableIcon({ id, name, x, y, onOpen }: IconProps) {
+export default function DraggableIcon({ id, name, x, y, onOpen, icon }: IconProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: id,
   });
 
-  // 計算樣式
   const style: React.CSSProperties = {
-    // dnd-kit 提供的位移量
     transform: CSS.Translate.toString(transform),
     top: `${y}px`,
     left: `${x}px`,
     position: 'absolute',
-    // 拖拽時拉高層級，避免被其他圖示遮擋
     zIndex: isDragging ? 100 : 10,
-    // 當不在拖拽狀態時，加入平滑動畫 (用於吸附格線時的視覺效果)
-    transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
-    touchAction: 'none', // 防止行動裝置上的預設手勢干擾
+    // transition 確保吸附格線與邊界縮回時有動畫感
+    transition: isDragging ? 'none' : 'all 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+    touchAction: 'none', 
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="flex flex-col items-center justify-center w-24 h-24 select-none group"
+      // 寬度響應式：手機寬度 20 (80px)，電腦寬度 24 (96px)，配合 page.tsx 的邊界計算
+      className="flex flex-col items-center justify-center w-20 sm:w-24 h-24 select-none group"
     >
-      {/* 圖示本體：綁定拖拽與點擊事件 */}
+      {/* 圖示本體 */}
       <div 
         {...listeners} 
         {...attributes}
         onClick={(e) => {
-          // 只有在不是拖拽的情況下才觸發點擊 (dnd-kit 感應器會處理 distance 判斷)
           e.stopPropagation();
           onOpen();
         }}
         className={`
-          w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg 
-          backdrop-blur-md border border-white/30 transition-colors duration-200
+          w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center shadow-lg 
+          backdrop-blur-md border border-white/30 transition-all duration-200
           ${isDragging 
             ? 'bg-white/40 cursor-grabbing scale-110 shadow-2xl' 
-            : 'bg-white/20 cursor-grab hover:bg-white/30 group-active:scale-95'
+            : 'bg-white/20 cursor-grab hover:bg-white/30 group-active:scale-90'
           }
         `}
       >
-        {/* 這裡未來可以根據不同的 icon 類型顯示不同 Emoji */}
-        <div className="text-3xl filter drop-shadow-sm">🔍</div>
+        <div className="text-2xl sm:text-3xl filter drop-shadow-sm">
+          {/* 修改：優先顯示 Supabase 傳來的 icon，如果沒有則根據名稱判斷或顯示預設 */}
+          {icon ? (
+            icon.startsWith('http') ? (
+              <img src={icon} alt={name} className="w-10 h-10 object-contain" />
+            ) : (
+              icon
+            )
+          ) : (
+            name === "料號查詢" ? "🔍" : "📁"
+          )}
+        </div>
       </div>
 
       {/* 檔案名稱標籤 */}
       <span className={`
-        mt-2 text-white text-[11px] font-medium drop-shadow-md 
-        bg-black/30 px-2 py-0.5 rounded-md transition-opacity
+        mt-2 text-black text-[10px] sm:text-[11px] font-medium drop-shadow-md 
+        bg-[#FF88004D] px-2 py-0.5 rounded-md transition-opacity
+        max-w-[90%] truncate // 增加 max-w 避免手機上標籤文字太長超出螢幕
         ${isDragging ? 'opacity-0' : 'opacity-100'}
       `}>
         {name}
       </span>
 
-      {/* 簡單的選中效果裝飾 (選配) */}
+      {/* 選中裝飾 */}
       {!isDragging && (
         <div className="absolute inset-0 border-2 border-white/0 group-hover:border-white/10 rounded-xl pointer-events-none" />
       )}
