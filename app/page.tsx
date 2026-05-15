@@ -33,13 +33,27 @@ export default function Desktop() {
   }));
 
   // 點擊圖示時觸發：如果是新開啟就加入 Array，如果已開啟就切換到最前
-  const handleOpenApp = (app: any) => {
-    const isAlreadyOpen = openApps.find(a => a.id === app.id);
-    if (!isAlreadyOpen) {
-      setOpenApps([...openApps, app]);
-    }
-    setActiveAppId(app.id);
-  };
+	// 修改 handleOpenApp 函式
+	const handleOpenApp = (app: any) => {
+	  // 1. 定義哪些網域需要「跳轉開啟」而非「嵌入開啟」
+	  // 你可以把會報錯、拒絕連線、或登入過期的網址關鍵字加進這個陣列
+	  const externalDomains = ['tkkns1.tkk.com.tw', 'http://211.75.18.228/efnet/'];
+
+	  const shouldOpenExternal = externalDomains.some(domain => app.url.includes(domain));
+
+	  if (shouldOpenExternal) {
+		// 如果符合關鍵字，直接開新分頁，不建立虛擬視窗
+		window.open(app.url, '_blank');
+		return; 
+	  }
+
+	  // 2. 原有的虛擬視窗邏輯
+	  const isAlreadyOpen = openApps.find(a => a.id === app.id);
+	  if (!isAlreadyOpen) {
+		setOpenApps([...openApps, app]);
+	  }
+	  setActiveAppId(app.id);
+	};
 
   // 關閉視窗
   const handleCloseApp = (id: string) => {
@@ -135,7 +149,14 @@ export default function Desktop() {
 		  <span className="text-xs font-medium text-gray-600">{app.name}</span>
 		  <div className="w-10" />
 		</div>
-		<iframe src={app.url} className="w-full h-full border-none" title={app.name} />
+		<iframe 
+		  src={app.url} 
+		  className="w-full h-full border-none" 
+		  title={app.name}
+		  // 加入以下權限，允許它處理表單、腳本和同源請求
+		  sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+		  allow="clipboard-read; clipboard-write"
+		/>
 	  </div>
 	))}
 
