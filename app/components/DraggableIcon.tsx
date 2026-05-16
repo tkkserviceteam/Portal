@@ -29,12 +29,13 @@ export default function DraggableIcon({ id, name, x, y, onOpen, icon }: IconProp
     touchAction: 'none', 
   };
 
-  return (
+return (
     <div
       ref={setNodeRef}
       style={style}
-      // 寬度響應式：手機寬度 20 (80px)，電腦寬度 24 (96px)，配合 page.tsx 的邊界計算
-      className="flex flex-col items-center justify-center w-20 sm:w-24 h-24 select-none group"
+      // --- 關鍵修改 1：設定固定寬高為 80px (GRID_SIZE 40 的兩倍) ---
+      // 這樣放手吸附時，圖示與圖示之間就會以 40 的倍數完美緊貼，絕對不會發生重疊
+      className="flex flex-col items-center justify-center w-[80px] h-[80px] select-none group"
     >
       {/* 圖示本體 */}
       <div 
@@ -44,20 +45,30 @@ export default function DraggableIcon({ id, name, x, y, onOpen, icon }: IconProp
           e.stopPropagation();
           onOpen();
         }}
+        // --- 關鍵修改 2：微調視覺圖示大小，在 80px 的格子裡留下一點呼吸空間 ---
         className={`
-          w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center shadow-lg 
-          backdrop-blur-md border border-white/30 transition-all duration-200
+          w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center shadow-lg 
+          backdrop-blur-md border border-black/30 transition-all duration-200
           ${isDragging 
             ? 'bg-white/40 cursor-grabbing scale-110 shadow-2xl' 
-            : 'bg-white/20 cursor-grab hover:bg-white/30 group-active:scale-90'
+            : 'bg-[#2D5F8F] cursor-grab hover:bg-[#D2A070] group-active:scale-90'
           }
         `}
       >
-        <div className="text-2xl sm:text-3xl filter drop-shadow-sm">
-          {/* 修改：優先顯示 Supabase 傳來的 icon，如果沒有則根據名稱判斷或顯示預設 */}
+        {/* 內部圖片與 Emoji 判斷邏輯（完全保留你原本寫得很好的防呆） */}
+        <div className="text-xl sm:text-2xl filter drop-shadow-sm flex items-center justify-center w-full h-full">
           {icon ? (
-            icon.startsWith('http') ? (
-              <img src={icon} alt={name} className="w-10 h-10 object-contain" />
+            icon.startsWith('http') || icon.startsWith('/') || icon.includes('.') ? (
+              <img 
+                src={icon} 
+                alt={name} 
+                // 配合圖示本體稍微縮小到 w-8 h-8，置中效果更好
+                className="w-8 h-8 object-contain pointer-events-none select-none" 
+                onError={(e) => {
+                  e.currentTarget.src = ""; 
+                  e.currentTarget.parentElement!.innerText = "📁";
+                }}
+              />
             ) : (
               icon
             )
@@ -69,9 +80,9 @@ export default function DraggableIcon({ id, name, x, y, onOpen, icon }: IconProp
 
       {/* 檔案名稱標籤 */}
       <span className={`
-        mt-2 text-black text-[10px] sm:text-[11px] font-medium drop-shadow-md 
-        bg-[#FF88004D] px-2 py-0.5 rounded-md transition-opacity
-        max-w-[90%] truncate // 增加 max-w 避免手機上標籤文字太長超出螢幕
+        mt-1 text-black text-[10px] sm:text-[11px] font-medium drop-shadow-md 
+        bg-[#FFFFFFFF] px-1.5 py-0.2 rounded-md transition-opacity
+        max-w-[95%] truncate // 放寬到 95% 讓 80px 寬度內能顯示更多字
         ${isDragging ? 'opacity-0' : 'opacity-100'}
       `}>
         {name}
