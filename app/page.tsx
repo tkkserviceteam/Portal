@@ -86,6 +86,7 @@ const handleOpenApp = (app: any) => {
     const isSpecialSystem = 
       app.url.includes('211.75.18.228') || 
       app.url.includes('.nsf') ||
+	  app.url.includes('asecl-facvdr') ||
       app.url.includes('tkkns1');
 
     if (isSpecialSystem || isMobile) {
