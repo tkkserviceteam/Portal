@@ -43,42 +43,35 @@ export default function Desktop() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
 // 1. 初始化讀取與時間更新
-useEffect(() => {
-  const fetchIcons = async () => {
-    const { data } = await supabase.from('user_desktop_icons').select('*');
-    if (data) {
-      const correctedData = data.map(icon => {
-        // --- X 軸防呆：強制貼齊格線 ---
-        const safeX = Math.round(icon.pos_x / GRID_SIZE) * GRID_SIZE;
+  useEffect(() => {
+    const fetchIcons = async () => {
+      const { data } = await supabase.from('user_desktop_icons').select('*');
+      if (data) {
+        const correctedData = data.map(icon => {
+          // 頂部防呆：第一排 (y=0) 絕對不能擺，強制移到第二排 (100)
+          let safeY = icon.pos_y < GRID_SIZE ? GRID_SIZE : icon.pos_y;
+          
+          // 底部防呆：放寬限制，只要不壓到 Dock 範圍即可
+          const maxY = window.innerHeight - 200;
+          
+          if (safeY > maxY) {
+            // 超出邊界時，自動吸附到最接近底部但又不會壓到 Dock 的那一格
+            safeY = Math.floor(maxY / GRID_SIZE) * GRID_SIZE;
+          }
+          
+          return {
+            ...icon,
+            pos_y: safeY
+          };
+        });
+        setIcons(correctedData);
+      }
+    };
+    fetchIcons();
 
-        // 頂部防呆：第一排 (y=0) 絕對不能擺，強制移到第二排 (40)
-        let safeY = icon.pos_y < GRID_SIZE ? GRID_SIZE : icon.pos_y;
-        
-        // 底部防呆：放寬限制，只要不壓到 Dock 範圍即可
-        const maxY = window.innerHeight - 200;
-        
-        if (safeY > maxY) {
-          // 超出邊界時，自動吸附到最接近底部但又不會壓到 Dock 的那一格
-          safeY = Math.floor(maxY / GRID_SIZE) * GRID_SIZE;
-        } else {
-          // --- Y 軸正常狀況下也強制貼齊格線 ---
-          safeY = Math.round(safeY / GRID_SIZE) * GRID_SIZE;
-        }
-        
-        return {
-          ...icon,
-          pos_x: safeX, // 套用貼齊後的 X 座標
-          pos_y: safeY
-        };
-      });
-      setIcons(correctedData);
-    }
-  };
-  fetchIcons();
-
-  const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-  return () => clearInterval(timer);
-}, []);
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   const sensors = useSensors(useSensor(MouseSensor, {
     activationConstraint: { distance: 10 } 
@@ -151,33 +144,57 @@ const handleDragEnd = async (event: DragEndEvent) => {
     const paddingRight = 20;
     const iconWidth = 80; // 配合 DraggableIcon 的 80px 寬度
     const maxX = window.innerWidth - iconWidth - paddingRight;
-    const maxY = window.innerHeight - 120; // 底部防呆距離
+    const maxY = window.innerHeight - 120; // 底部防呆 distance
 
     const boundedX = Math.max(paddingLeft, Math.min(rawX, maxX));
     const boundedY = Math.max(GRID_SIZE, Math.min(rawY, maxY));
 
-    // 3. 計算貼齊格線後（GRID_SIZE = 40）的目標座標
+    // 3. 計算貼齊格線後（GRID_SIZE = 40）的目標座標 (這裡假設座標是頂點對齊，不是中心對齊)
     const targetX = Math.round(boundedX / GRID_SIZE) * GRID_SIZE;
     const targetY = Math.round(boundedY / GRID_SIZE) * GRID_SIZE;
 
-    // --- 修正後的安全防線：只檢查是否「完全重疊在同一格」 ---
-    const isSpaceOccupied = icons.some((icon) => {
+    // --- 正確的安全防線：寬容型 Hitbox 碰撞檢查 (AABB) ---
+    // 視覺大小是 80x80。我們讓「內部碰撞區」變小為 72x72。
+    // 這意味著圖示四周各有 4px 的「視覺寬容區」。
+    // 兩個圖示可以視覺上排得非常近，看起來就像完美對齊，但內部的 Hitbox 距離還有 8px (4+4)，不會相撞。
+    const isHitboxOverlap = icons.some((icon) => {
       if (icon.id === active.id) return false; // 排除自己
       
-      // 精準檢查：如果 X 軸 和 Y 軸的座標完全跟別人的格子撞車，才算重疊
-      return icon.pos_x === targetX && icon.pos_y === targetY;
+      // 計算其他圖示的 Hitbox (四邊各加上 4px 的視覺寬容區，即內縮 4px)
+      const otherHitbox = {
+          x_min: icon.pos_x + 4,
+          x_max: icon.pos_x + 76, // 視覺寬度 80px - 4px 的內縮
+          y_min: icon.pos_y + 4,
+          y_max: icon.pos_y + 76
+      };
+
+      // 計算目標位置圖示的 Hitbox (頂點位於 targetX, targetY)
+      const dragHitbox = {
+          x_min: targetX + 4,
+          x_max: targetX + 76,
+          y_min: targetY + 4,
+          y_max: targetY + 76
+      };
+
+      // AABB 寬容型碰撞檢查
+      return (
+        dragHitbox.x_min < otherHitbox.x_max &&
+        dragHitbox.x_max > otherHitbox.x_min &&
+        dragHitbox.y_min < otherHitbox.y_max &&
+        dragHitbox.y_max > otherHitbox.y_min
+      );
     });
 
     setIcons((prevIcons) => 
       prevIcons.map((icon) => {
         if (icon.id === active.id) {
-          // 如果目標格子已經有住人，拒絕放下，平滑彈回原位
-          if (isSpaceOccupied) {
-            console.warn(`該網格已有其他圖示，退回原位！`);
+          // 如果目標位置的視覺寬容區相撞，拒絕放下，平滑彈回原位
+          if (isHitboxOverlap) {
+            console.warn(`該網格視覺寬容區已有其他圖示，退回原位！`);
             return icon; 
           }
 
-          // 如果格子是空的，安心入住並寫入 Supabase
+          // 如果目標格子完全可以安心放下，安心入住並寫入 Supabase
           supabase.from('user_desktop_icons')
             .update({ pos_x: targetX, pos_y: targetY })
             .eq('id', active.id)
