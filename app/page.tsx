@@ -188,6 +188,9 @@ const handleDragEnd = async (event: DragEndEvent) => {
     );
   };
 
+const canvasWidth = Math.max(1200, ...icons.map(i => i.pos_x + 120));
+const canvasHeight = Math.max(800, ...icons.map(i => i.pos_y + 120));
+
 return (
     <main className="relative h-screen w-screen overflow-hidden bg-[url('/brushstroke-white.jpg')] bg-cover bg-center">
       
