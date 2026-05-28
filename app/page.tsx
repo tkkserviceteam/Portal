@@ -43,35 +43,43 @@ export default function Desktop() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
 // 1. 初始化讀取與時間更新
-  useEffect(() => {
-    const fetchIcons = async () => {
-      const { data } = await supabase.from('user_desktop_icons').select('*');
-      if (data) {
-        const correctedData = data.map(icon => {
-          // 頂部防呆：第一排 (y=0) 絕對不能擺，強制移到第二排 (100)
-          let safeY = icon.pos_y < GRID_SIZE ? GRID_SIZE : icon.pos_y;
-          
-          // 底部防呆：放寬限制，只要不壓到 Dock 範圍即可
-          const maxY = window.innerHeight - 200;
-          
-          if (safeY > maxY) {
-            // 超出邊界時，自動吸附到最接近底部但又不會壓到 Dock 的那一格
-            safeY = Math.floor(maxY / GRID_SIZE) * GRID_SIZE;
-          }
-          
-          return {
-            ...icon,
-            pos_y: safeY
-          };
-        });
-        setIcons(correctedData);
-      }
-    };
-    fetchIcons();
+// 1. 初始化讀取與時間更新
+	useEffect(() => {
+	  const fetchIcons = async () => {
+		const { data } = await supabase.from('user_desktop_icons').select('*');
+		if (data) {
+		  const correctedData = data.map(icon => {
+			// --- X 軸防呆：強制貼齊格線 ---
+			const safeX = Math.round(icon.pos_x / GRID_SIZE) * GRID_SIZE;
 
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(timer);
-  }, []);
+			// 頂部防呆：第一排 (y=0) 絕對不能擺，強制移到第二排 (40)
+			let safeY = icon.pos_y < GRID_SIZE ? GRID_SIZE : icon.pos_y;
+			
+			// 底部防呆：放寬限制，只要不壓到 Dock 範圍即可
+			const maxY = window.innerHeight - 200;
+			
+			if (safeY > maxY) {
+			  // 超出邊界時，自動吸附到最接近底部但又不會壓到 Dock 的那一格
+			  safeY = Math.floor(maxY / GRID_SIZE) * GRID_SIZE;
+			} else {
+			  // --- Y 軸正常狀況下也強制貼齊格線 ---
+			  safeY = Math.round(safeY / GRID_SIZE) * GRID_SIZE;
+			}
+			
+			return {
+			  ...icon,
+			  pos_x: safeX, // 套用貼齊後的 X 座標
+			  pos_y: safeY
+			};
+		  });
+		  setIcons(correctedData);
+		}
+	  };
+	  fetchIcons();
+
+	  const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+	  return () => clearInterval(timer);
+	}, []);
 
   const sensors = useSensors(useSensor(MouseSensor, {
     activationConstraint: { distance: 10 } 
