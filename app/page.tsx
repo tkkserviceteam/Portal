@@ -42,22 +42,25 @@ export default function Desktop() {
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // 1. 初始化讀取與時間更新
+// 1. 初始化讀取與時間更新
   useEffect(() => {
     const fetchIcons = async () => {
       const { data } = await supabase.from('user_desktop_icons').select('*');
       if (data) {
         const correctedData = data.map(icon => {
-          // --- 修正 1：載入時 X 與 Y 軸強制貼齊 40 格線，解決微小歪斜 ---
-          const safeX = Math.round(icon.pos_x / GRID_SIZE) * GRID_SIZE;
-          let safeY = Math.round(icon.pos_y / GRID_SIZE) * GRID_SIZE;
+          // 頂部防呆：第一排 (y=0) 絕對不能擺，強制移到第二排 (100)
+          let safeY = icon.pos_y < GRID_SIZE ? GRID_SIZE : icon.pos_y;
           
-          // 頂部防呆：第一排 (y=0) 絕對不能擺，強制移到第二排
-          if (safeY < GRID_SIZE) safeY = GRID_SIZE;
+          // 底部防呆：放寬限制，只要不壓到 Dock 範圍即可
+          const maxY = window.innerHeight - 200;
+          
+          if (safeY > maxY) {
+            // 超出邊界時，自動吸附到最接近底部但又不會壓到 Dock 的那一格
+            safeY = Math.floor(maxY / GRID_SIZE) * GRID_SIZE;
+          }
           
           return {
             ...icon,
-            pos_x: safeX,
             pos_y: safeY
           };
         });
@@ -75,28 +78,40 @@ export default function Desktop() {
   }));
 
   // 2. 處理開啟 App (分流邏輯)
-  const handleOpenApp = (app: any) => {
+const handleOpenApp = (app: any) => {
+    // 1. 偵測是否為行動裝置 (手機或平板)
     const isMobile = /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
+
+    // 2. 判斷是否為特殊系統 (原有的 IP 與 .nsf 判斷)
     const isSpecialSystem = 
       app.url.includes('211.75.18.228') || 
       app.url.includes('.nsf') ||
-      app.url.includes('asecl-facvdr') ||
+	  app.url.includes('asecl-facvdr') ||
       app.url.includes('tkkns1');
 
     if (isSpecialSystem || isMobile) {
+      // 設定視窗尺寸 (電腦版有用，手機版則會影響瀏覽器決定如何開啟)
       const w = 1200;
       const h = 850;
       const left = (window.screen.width / 2) - (w / 2);
       const top = (window.screen.height / 2) - (h / 2);
+
+      // --- 關鍵修改 ---
+      // 在手機 Chrome 上，如果你不給太多複雜參數，它較容易觸發 "Custom Tab" 或 "Floating window"
+      // 對於電腦，我們維持隱藏工具列的「獨立 App 感」
       const features = isMobile 
-        ? "noopener,noreferrer" 
+        ? "noopener,noreferrer" // 手機端：讓系統決定最佳開啟方式 (通常是 Chrome 漂浮視窗)
         : `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,status=no,location=no,toolbar=no,menubar=no`;
 
       const newWin = window.open(app.url, "_blank", features);
-      if (newWin) newWin.focus();
+      
+      if (newWin) {
+        newWin.focus();
+      }
       return;
     }
 
+    // 3. 一般網頁 (電腦版且非特殊系統) 則繼續使用 iFrame
     const isAlreadyOpen = openApps.find(a => a.id === app.id);
     if (!isAlreadyOpen) {
       setOpenApps([...openApps, app]);
@@ -113,30 +128,54 @@ export default function Desktop() {
     setActiveAppId(null); 
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+const handleDragEnd = async (event: DragEndEvent) => {
     const { active, delta } = event;
     
+    // 1. 找出當前正在被拖拽的圖示原始資料
     const draggedIcon = icons.find(icon => icon.id === active.id);
     if (!draggedIcon) return;
 
-    // 計算預期的原始新座標
+    // 2. 計算預期的原始新座標
     const rawX = draggedIcon.pos_x + delta.x;
     const rawY = draggedIcon.pos_y + delta.y;
 
-    // 左上角防呆，防止拖出畫面左上方
+    // 周圍邊界防呆
     const paddingLeft = 20; 
-    const boundedX = Math.max(paddingLeft, rawX);
-    const boundedY = Math.max(GRID_SIZE, rawY);
+    const paddingRight = 20;
+    const iconWidth = 80; // 配合 DraggableIcon 的 80px 寬度
+    const maxX = window.innerWidth - iconWidth - paddingRight;
+    const maxY = window.innerHeight - 120; // 底部防呆距離
 
-    // 計算貼齊格線後（GRID_SIZE = 40）的目標座標
+    const boundedX = Math.max(paddingLeft, Math.min(rawX, maxX));
+    const boundedY = Math.max(GRID_SIZE, Math.min(rawY, maxY));
+
+    // 3. 計算貼齊格線後（GRID_SIZE = 40）的目標座標
     const targetX = Math.round(boundedX / GRID_SIZE) * GRID_SIZE;
     const targetY = Math.round(boundedY / GRID_SIZE) * GRID_SIZE;
 
-    // --- 修正 2：移除所有碰撞防護與反彈，想放哪就放哪 ---
+    // --- 核心安全防線：全方位九宮格碰撞檢查 ---
+    // 限制新位置的 X 軸與 Y 軸距離其他圖示都必須「大於 40px」
+    // 這樣不論是重合(0)、左右鄰居(40)、上下鄰居(40)、甚至斜對角鄰居，只要會造成視覺重疊一律攔截
+    const isSpaceOccupied = icons.some((icon) => {
+      if (icon.id === active.id) return false; // 排除自己
+      
+      const distanceX = Math.abs(icon.pos_x - targetX);
+      const distanceY = Math.abs(icon.pos_y - targetY);
+      
+      // 只要 X 軸跟 Y 軸的距離同時小於等於 40px，就代表圖示的外框會疊到，判定為碰撞
+      return distanceX <= 40 && distanceY <= 40;
+    });
+
     setIcons((prevIcons) => 
       prevIcons.map((icon) => {
         if (icon.id === active.id) {
-          // 直接寫入 Supabase，不再阻攔
+          // 如果偵測到上下左右或斜對角太接近其他圖示，直接拒絕，平滑彈回原位
+          if (isSpaceOccupied) {
+            console.warn(`位置與其他圖示重疊（上下左右安全距離不足），退回原位！`);
+            return icon; 
+          }
+
+          // 如果四周絕對安全，才正式更新座標並寫入 Supabase
           supabase.from('user_desktop_icons')
             .update({ pos_x: targetX, pos_y: targetY })
             .eq('id', active.id)
@@ -148,10 +187,6 @@ export default function Desktop() {
       })
     );
   };
-
-  // 動態計算畫布大小 (確保拖曳到右下方時卷軸能適當延展)
-  const canvasWidth = Math.max(1200, ...icons.map(i => i.pos_x + 120));
-  const canvasHeight = Math.max(800, ...icons.map(i => i.pos_y + 120));
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-[url('/brushstroke-white.jpg')] bg-cover bg-center">
@@ -174,26 +209,20 @@ export default function Desktop() {
       </nav>
 
       {/* 1. 桌面圖示區域 */}
-      {/* --- 修正 3：讓捲軸區域停在 Dock 上方 (bottom-24)，絕不會擋住 Home 鍵 --- */}
-      <div className="absolute top-0 bottom-24 left-0 right-0 overflow-auto z-10">
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div 
-            className="relative pt-12 p-4 transition-all" 
-            style={{ minWidth: `${canvasWidth}px`, minHeight: `${canvasHeight}px` }}
-          >
-            {icons.map((icon) => (
-              <DraggableIcon 
-                key={icon.id} 
-                x={icon.pos_x}
-                y={icon.pos_y}
-                icon={icon.icon}
-                {...icon}
-                onOpen={() => handleOpenApp(icon)} 
-              />
-            ))}
-          </div>
-        </DndContext>
-      </div>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <div className="relative w-full h-full pt-12">
+		{icons.map((icon) => (
+		  <DraggableIcon 
+			key={icon.id} 
+			x={icon.pos_x}
+		y={icon.pos_y}
+		icon={icon.icon}
+			{...icon} // 或者寫 icon={icon.icon}
+			onOpen={() => handleOpenApp(icon)} 
+		  />
+		))}
+        </div>
+      </DndContext>
 
       {/* 2. 虛擬視窗層 */}
       {openApps.map((app) => (
