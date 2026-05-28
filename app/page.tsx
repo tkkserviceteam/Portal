@@ -216,6 +216,7 @@ return (
       {/* 頂部選單列 */}
       <nav className="absolute top-0 w-full h-8 bg-black/5 backdrop-blur-md flex items-center px-4 justify-between text-black text-sm z-50 border-b border-black/5">
         <div className="flex gap-4 items-center">
+          <span className="font-bold text-lg">⛛</span>
           <span className="font-semibold">綜合資訊平台</span>
         </div>
 

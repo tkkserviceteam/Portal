@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "⛛綜合資訊平台",
+  title: "綜合資訊平台",
   description: "零件料號查詢與 CRM 系統入口",
   // 這裡就相當於在 <head> 裡加入相關標籤
   icons: {
