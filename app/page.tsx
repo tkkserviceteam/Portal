@@ -131,70 +131,27 @@ const handleOpenApp = (app: any) => {
 const handleDragEnd = async (event: DragEndEvent) => {
     const { active, delta } = event;
     
-    // 1. 找出當前正在被拖拽的圖示原始資料
     const draggedIcon = icons.find(icon => icon.id === active.id);
     if (!draggedIcon) return;
 
-    // 2. 計算預期的原始新座標
     const rawX = draggedIcon.pos_x + delta.x;
     const rawY = draggedIcon.pos_y + delta.y;
 
-    // 周圍邊界防呆
+    // 【修改點 1】：拿掉 maxX 與 maxY 的限制。
+    // 允許圖示往右、往下拖曳出視窗，藉此撐大版面產生卷軸
     const paddingLeft = 20; 
-    const paddingRight = 20;
-    const iconWidth = 80; // 配合 DraggableIcon 的 80px 寬度
-    const maxX = window.innerWidth - iconWidth - paddingRight;
-    const maxY = window.innerHeight - 120; // 底部防呆 distance
+    const boundedX = Math.max(paddingLeft, rawX); // 只要不超出最左邊即可
+    const boundedY = Math.max(GRID_SIZE, rawY);   // 只要不壓到頂部選單即可
 
-    const boundedX = Math.max(paddingLeft, Math.min(rawX, maxX));
-    const boundedY = Math.max(GRID_SIZE, Math.min(rawY, maxY));
-
-    // 3. 計算貼齊格線後（GRID_SIZE = 40）的目標座標 (這裡假設座標是頂點對齊，不是中心對齊)
+    // 計算貼齊格線（GRID_SIZE = 40）的目標座標
     const targetX = Math.round(boundedX / GRID_SIZE) * GRID_SIZE;
     const targetY = Math.round(boundedY / GRID_SIZE) * GRID_SIZE;
-
-    // --- 正確的安全防線：寬容型 Hitbox 碰撞檢查 (AABB) ---
-    // 視覺大小是 80x80。我們讓「內部碰撞區」變小為 72x72。
-    // 這意味著圖示四周各有 4px 的「視覺寬容區」。
-    // 兩個圖示可以視覺上排得非常近，看起來就像完美對齊，但內部的 Hitbox 距離還有 8px (4+4)，不會相撞。
-    const isHitboxOverlap = icons.some((icon) => {
-      if (icon.id === active.id) return false; // 排除自己
-      
-      // 計算其他圖示的 Hitbox (四邊各加上 4px 的視覺寬容區，即內縮 4px)
-      const otherHitbox = {
-          x_min: icon.pos_x + 4,
-          x_max: icon.pos_x + 76, // 視覺寬度 80px - 4px 的內縮
-          y_min: icon.pos_y + 4,
-          y_max: icon.pos_y + 76
-      };
-
-      // 計算目標位置圖示的 Hitbox (頂點位於 targetX, targetY)
-      const dragHitbox = {
-          x_min: targetX + 4,
-          x_max: targetX + 76,
-          y_min: targetY + 4,
-          y_max: targetY + 76
-      };
-
-      // AABB 寬容型碰撞檢查
-      return (
-        dragHitbox.x_min < otherHitbox.x_max &&
-        dragHitbox.x_max > otherHitbox.x_min &&
-        dragHitbox.y_min < otherHitbox.y_max &&
-        dragHitbox.y_max > otherHitbox.y_min
-      );
-    });
 
     setIcons((prevIcons) => 
       prevIcons.map((icon) => {
         if (icon.id === active.id) {
-          // 如果目標位置的視覺寬容區相撞，拒絕放下，平滑彈回原位
-          if (isHitboxOverlap) {
-            console.warn(`該網格視覺寬容區已有其他圖示，退回原位！`);
-            return icon; 
-          }
-
-          // 如果目標格子完全可以安心放下，安心入住並寫入 Supabase
+          // 【修改點 2】：徹底移除 isSpaceOccupied 與彈回邏輯！
+          // 不管格子有沒有人，直接入住，不滿意再拖開就好
           supabase.from('user_desktop_icons')
             .update({ pos_x: targetX, pos_y: targetY })
             .eq('id', active.id)
@@ -205,7 +162,7 @@ const handleDragEnd = async (event: DragEndEvent) => {
         return icon;
       })
     );
-  };
+};
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-[url('/brushstroke-white.jpg')] bg-cover bg-center">
@@ -228,20 +185,21 @@ const handleDragEnd = async (event: DragEndEvent) => {
       </nav>
 
       {/* 1. 桌面圖示區域 */}
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="relative w-full h-full pt-12">
-		{icons.map((icon) => (
-		  <DraggableIcon 
-			key={icon.id} 
-			x={icon.pos_x}
-		y={icon.pos_y}
-		icon={icon.icon}
-			{...icon} // 或者寫 icon={icon.icon}
-			onOpen={() => handleOpenApp(icon)} 
-		  />
-		))}
+	<DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        {/* 原本：<div className="relative w-full h-full pt-12"> */}
+        <div className="relative min-w-full min-h-full pt-12">
+            {icons.map((icon) => (
+                <DraggableIcon 
+                    key={icon.id} 
+                    x={icon.pos_x}
+                    y={icon.pos_y}
+                    icon={icon.icon}
+                    {...icon}
+                    onOpen={() => handleOpenApp(icon)} 
+                />
+            ))}
         </div>
-      </DndContext>
+    </DndContext>
 
       {/* 2. 虛擬視窗層 */}
       {openApps.map((app) => (
