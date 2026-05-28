@@ -144,7 +144,7 @@ const handleDragEnd = async (event: DragEndEvent) => {
     const paddingRight = 20;
     const iconWidth = 80; // 配合 DraggableIcon 的 80px 寬度
     const maxX = window.innerWidth - iconWidth - paddingRight;
-    const maxY = window.innerHeight - 120; // 底部防呆距離
+    const maxY = window.innerHeight - 80; // 底部防呆距離
 
     const boundedX = Math.max(paddingLeft, Math.min(rawX, maxX));
     const boundedY = Math.max(GRID_SIZE, Math.min(rawY, maxY));
