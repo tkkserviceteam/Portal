@@ -160,29 +160,24 @@ const handleDragEnd = async (event: DragEndEvent) => {
     const targetX = Math.round(boundedX / GRID_SIZE) * GRID_SIZE;
     const targetY = Math.round(boundedY / GRID_SIZE) * GRID_SIZE;
 
-    // --- 核心安全防線：全方位九宮格碰撞檢查 ---
-    // 限制新位置的 X 軸與 Y 軸距離其他圖示都必須「大於 40px」
-    // 這樣不論是重合(0)、左右鄰居(40)、上下鄰居(40)、甚至斜對角鄰居，只要會造成視覺重疊一律攔截
+    // --- 修正後的安全防線：只檢查是否「完全重疊在同一格」 ---
     const isSpaceOccupied = icons.some((icon) => {
       if (icon.id === active.id) return false; // 排除自己
       
-      const distanceX = Math.abs(icon.pos_x - targetX);
-      const distanceY = Math.abs(icon.pos_y - targetY);
-      
-      // 只要 X 軸跟 Y 軸的距離同時小於等於 40px，就代表圖示的外框會疊到，判定為碰撞
-      return distanceX <= 40 && distanceY <= 40;
+      // 精準檢查：如果 X 軸 和 Y 軸的座標完全跟別人的格子撞車，才算重疊
+      return icon.pos_x === targetX && icon.pos_y === targetY;
     });
 
     setIcons((prevIcons) => 
       prevIcons.map((icon) => {
         if (icon.id === active.id) {
-          // 如果偵測到上下左右或斜對角太接近其他圖示，直接拒絕，平滑彈回原位
+          // 如果目標格子已經有住人，拒絕放下，平滑彈回原位
           if (isSpaceOccupied) {
-            console.warn(`位置與其他圖示重疊（上下左右安全距離不足），退回原位！`);
+            console.warn(`該網格已有其他圖示，退回原位！`);
             return icon; 
           }
 
-          // 如果四周絕對安全，才正式更新座標並寫入 Supabase
+          // 如果格子是空的，安心入住並寫入 Supabase
           supabase.from('user_desktop_icons')
             .update({ pos_x: targetX, pos_y: targetY })
             .eq('id', active.id)
