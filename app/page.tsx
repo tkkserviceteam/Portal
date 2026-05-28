@@ -48,19 +48,16 @@ export default function Desktop() {
       const { data } = await supabase.from('user_desktop_icons').select('*');
       if (data) {
         const correctedData = data.map(icon => {
-          // 頂部防呆：第一排 (y=0) 絕對不能擺，強制移到第二排 (100)
-          let safeY = icon.pos_y < GRID_SIZE ? GRID_SIZE : icon.pos_y;
+          // X 軸與 Y 軸強制貼齊 40 (GRID_SIZE) 的格線
+          const safeX = Math.round(icon.pos_x / GRID_SIZE) * GRID_SIZE;
+          let safeY = Math.round(icon.pos_y / GRID_SIZE) * GRID_SIZE;
           
-          // 底部防呆：放寬限制，只要不壓到 Dock 範圍即可
-          const maxY = window.innerHeight - 200;
-          
-          if (safeY > maxY) {
-            // 超出邊界時，自動吸附到最接近底部但又不會壓到 Dock 的那一格
-            safeY = Math.floor(maxY / GRID_SIZE) * GRID_SIZE;
-          }
-          
+          // 確保 Y 軸不會塞進最頂部的選單列 (小於 40 就推到 40)
+          if (safeY < GRID_SIZE) safeY = GRID_SIZE;
+
           return {
             ...icon,
+            pos_x: safeX,
             pos_y: safeY
           };
         });
@@ -134,24 +131,23 @@ const handleDragEnd = async (event: DragEndEvent) => {
     const draggedIcon = icons.find(icon => icon.id === active.id);
     if (!draggedIcon) return;
 
+    // 算出滑鼠放開時的絕對原始座標
     const rawX = draggedIcon.pos_x + delta.x;
     const rawY = draggedIcon.pos_y + delta.y;
 
-    // 【修改點 1】：拿掉 maxX 與 maxY 的限制。
-    // 允許圖示往右、往下拖曳出視窗，藉此撐大版面產生卷軸
-    const paddingLeft = 20; 
-    const boundedX = Math.max(paddingLeft, rawX); // 只要不超出最左邊即可
-    const boundedY = Math.max(GRID_SIZE, rawY);   // 只要不壓到頂部選單即可
+    // 左上角防呆 (確保不會拖到畫面外面變成負數)
+    const boundedX = Math.max(20, rawX);
+    const boundedY = Math.max(GRID_SIZE, rawY);
 
-    // 計算貼齊格線（GRID_SIZE = 40）的目標座標
+    // 單純將座標貼齊 40 的格線，不做任何其他干擾
     const targetX = Math.round(boundedX / GRID_SIZE) * GRID_SIZE;
     const targetY = Math.round(boundedY / GRID_SIZE) * GRID_SIZE;
 
+    // 直接無條件更新位置
     setIcons((prevIcons) => 
       prevIcons.map((icon) => {
         if (icon.id === active.id) {
-          // 【修改點 2】：徹底移除 isSpaceOccupied 與彈回邏輯！
-          // 不管格子有沒有人，直接入住，不滿意再拖開就好
+          // 寫入資料庫
           supabase.from('user_desktop_icons')
             .update({ pos_x: targetX, pos_y: targetY })
             .eq('id', active.id)
@@ -165,10 +161,10 @@ const handleDragEnd = async (event: DragEndEvent) => {
 };
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-[url('/brushstroke-white.jpg')] bg-cover bg-center">
+    <main className="relative h-screen w-screen overflow-auto bg-[url('/brushstroke-white.jpg')] bg-cover bg-center">
       
       {/* 頂部選單列 */}
-      <nav className="absolute top-0 w-full h-8 bg-black/5 backdrop-blur-md flex items-center px-4 justify-between text-black text-sm z-50 border-b border-black/5">
+      <nav className="fixed top-0 w-full h-8 bg-black/5 backdrop-blur-md flex items-center px-4 justify-between text-black text-sm z-50 border-b border-black/5">
         <div className="flex gap-4 items-center">
           <span className="font-bold text-lg">⛛</span>
           <span className="font-semibold">綜合資訊平台</span>
@@ -184,22 +180,22 @@ const handleDragEnd = async (event: DragEndEvent) => {
         </div>
       </nav>
 
-      {/* 1. 桌面圖示區域 */}
-	<DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        {/* 原本：<div className="relative w-full h-full pt-12"> */}
-        <div className="relative min-w-full min-h-full pt-12">
-            {icons.map((icon) => (
-                <DraggableIcon 
-                    key={icon.id} 
-                    x={icon.pos_x}
-                    y={icon.pos_y}
-                    icon={icon.icon}
-                    {...icon}
-                    onOpen={() => handleOpenApp(icon)} 
-                />
-            ))}
+{/* 1. 桌面圖示區域 */}
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        {/* 【修改 2】：將畫布強制撐大 (給個超大尺寸 min-w-[2000px] min-h-[1200px])，這樣絕對有卷軸 */}
+        <div className="relative min-w-[2000px] min-h-[1200px] pt-12">
+          {icons.map((icon) => (
+            <DraggableIcon 
+              key={icon.id} 
+              x={icon.pos_x}
+              y={icon.pos_y}
+              icon={icon.icon}
+              {...icon}
+              onOpen={() => handleOpenApp(icon)} 
+            />
+          ))}
         </div>
-    </DndContext>
+      </DndContext>
 
       {/* 2. 虛擬視窗層 */}
       {openApps.map((app) => (
