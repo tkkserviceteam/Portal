@@ -188,9 +188,28 @@ const handleDragEnd = async (event: DragEndEvent) => {
     );
   };
 
-  return (
+return (
     <main className="relative h-screen w-screen overflow-hidden bg-[url('/brushstroke-white.jpg')] bg-cover bg-center">
       
+      {/* --- 加入這段 CSS 來美化與隱藏卷軸 --- */}
+      <style>{`
+        /* 針對 custom-scroll 類別自訂卷軸 */
+        .custom-scroll::-webkit-scrollbar {
+          width: 6px;  /* 讓垂直卷軸變得很細 */
+          height: 0px; /* 關鍵：將水平卷軸高度設為 0，直接隱藏 */
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+          background: transparent; /* 讓卷軸軌道完全透明 */
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.15); /* 半透明灰色的拉桿 */
+          border-radius: 10px; /* 圓角設計 */
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 0, 0, 0.3); /* 滑鼠游標靠近時稍微加深 */
+        }
+      `}</style>
+
       {/* 頂部選單列 */}
       <nav className="absolute top-0 w-full h-8 bg-black/5 backdrop-blur-md flex items-center px-4 justify-between text-black text-sm z-50 border-b border-black/5">
         <div className="flex gap-4 items-center">
@@ -209,20 +228,27 @@ const handleDragEnd = async (event: DragEndEvent) => {
       </nav>
 
       {/* 1. 桌面圖示區域 */}
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="relative w-full h-full pt-12">
-		{icons.map((icon) => (
-		  <DraggableIcon 
-			key={icon.id} 
-			x={icon.pos_x}
-		y={icon.pos_y}
-		icon={icon.icon}
-			{...icon} // 或者寫 icon={icon.icon}
-			onOpen={() => handleOpenApp(icon)} 
-		  />
-		))}
-        </div>
-      </DndContext>
+      {/* --- 在這裡加上 custom-scroll --- */}
+      <div className="absolute top-0 bottom-24 left-0 right-0 overflow-auto z-10 custom-scroll">
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div 
+            className="relative pt-12 p-4 transition-all" 
+            style={{ minWidth: `${canvasWidth}px`, minHeight: `${canvasHeight}px` }}
+          >
+            {icons.map((icon) => (
+              <DraggableIcon 
+                key={icon.id} 
+                x={icon.pos_x}
+                y={icon.pos_y}
+                icon={icon.icon}
+                {...icon}
+                onOpen={() => handleOpenApp(icon)} 
+              />
+            ))}
+          </div>
+        </DndContext>
+      </div>
+
 
       {/* 2. 虛擬視窗層 */}
       {openApps.map((app) => (
