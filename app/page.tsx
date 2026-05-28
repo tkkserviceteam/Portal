@@ -140,7 +140,7 @@ const handleDragEnd = async (event: DragEndEvent) => {
     const rawY = draggedIcon.pos_y + delta.y;
 
     // 周圍邊界防呆
-    const paddingLeft = 20; 
+    const paddingLeft = 0; 
     const paddingRight = 20;
     const iconWidth = 80; // 配合 DraggableIcon 的 80px 寬度
     const maxX = window.innerWidth - iconWidth - paddingRight;
