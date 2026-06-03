@@ -88,6 +88,7 @@ const handleOpenApp = (app: any) => {
       app.url.includes('.nsf') ||
 	  app.url.includes('asecl-facvdr') ||
 	  app.url.includes('timetreeapp.com') ||
+	  app.url.includes('124.219.0.235') ||
       app.url.includes('tkkns1');
 
     if (isSpecialSystem || isMobile) {
